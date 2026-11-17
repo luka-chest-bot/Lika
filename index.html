@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сундуки</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #1a1a2e; color: white; padding: 16px; text-align: center; }
+        h1 { font-size: 20px; margin-bottom: 16px; }
+        .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 16px; }
+        .chest { aspect-ratio: 1; background: #e94560; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 12px; cursor: pointer; transition: 0.2s; }
+        .chest.opened { background: #333; cursor: default; }
+        .chest.disabled { background: #444; cursor: not-allowed; opacity: 0.5; }
+        .prize { font-size: 14px; margin-top: 16px; padding: 12px; background: #16213e; border-radius: 8px; }
+        .alert { color: #e94560; margin-top: 10px; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <h1>🗄️ Сундуки</h1>
+    <div class="grid" id="grid"></div>
+    <div class="prize" id="prize"></div>
+    <div class="alert" id="alert"></div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        const prizes = [
+            "скидка 5₽", "скидка 5₽", "скидка 5₽", "скидка 5₽",
+            "скидка 3₽", "скидка 3₽", "скидка 3₽", "скидка 3₽", "скидка 3₽",
+            "скидка 2₽", "скидка 2₽", "скидка 2₽", "скидка 2₽", "скидка 2₽", "скидка 2₽", "скидка 2₽", "скидка 2₽", "скидка 2₽", "скидка 2₽", "скидка 2₽",
+            "бесплатная банка", "бесплатная банка",
+            "бесплатный картридж", "бесплатный картридж",
+            "банка + картридж"
+        ];
+
+        function shuffle(arr) {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        const userId = tg.initDataUnsafe?.user?.id || 'guest';
+        const storageKey = `chests_${userId}`;
+        let state = JSON.parse(localStorage.getItem(storageKey));
+
+        if (!state) {
+            state = {
+                shuffled: shuffle([...prizes]),
+                openedIndex: null,
+                openedPrize: null
+            };
+            localStorage.setItem(storageKey, JSON.stringify(state));
+        }
+
+        const grid = document.getElementById('grid');
+        const prizeDiv = document.getElementById('prize');
+        const alertDiv = document.getElementById('alert');
+
+        function render() {
+            grid.innerHTML = '';
+            state.shuffled.forEach((prize, i) => {
+                const div = document.createElement('div');
+                div.className = 'chest';
+                if (state.openedIndex !== null) {
+                    div.classList.add(i === state.openedIndex ? 'opened' : 'disabled');
+                    if (i === state.openedIndex) div.textContent = '🎁';
+                } else {
+                    div.textContent = '🗄️';
+                }
+                div.onclick = () => openChest(i);
+                grid.appendChild(div);
+            });
+
+            if (state.openedPrize) {
+                prizeDiv.textContent = `🎉 Вы выиграли: ${state.openedPrize}`;
+            } else {
+                prizeDiv.textContent = '';
+            }
+
+            if (state.openedIndex !== null) {
+                alertDiv.textContent = 'Вы уже открыли сундук. Остальные заблокированы.';
+            } else {
+                alertDiv.textContent = 'Нажмите на сундук, чтобы открыть';
+            }
+        }
+
+        function openChest(index) {
+            if (state.openedIndex !== null) {
+                alertDiv.textContent = 'Вы уже открыли сундук!';
+                return;
+            }
+            state.openedIndex = index;
+            state.openedPrize = state.shuffled[index];
+            localStorage.setItem(storageKey, JSON.stringify(state));
+            render();
+
+            // Отправка уведомления админу (через бота)
+            fetch('https://api.telegram.org/bot9018263507:AAHs7rdzj4_skrEgL3CcBDOcmnjpTXDa9dE/sendMessage', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    chat_id: '8103392209',
+                    text: `🎁 Открытие сундука\nID: ${userId}\nПриз: ${state.openedPrize}`
+                })
+            }).catch(() => {});
+        }
+
+        render();
+    </script>
+</body>
+</html>
